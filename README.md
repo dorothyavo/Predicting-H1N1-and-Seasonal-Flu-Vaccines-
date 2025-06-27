@@ -23,7 +23,7 @@ The dataset contains 36 columns:
 - **opinion_h1n1_vacc_effective**: Opinion on H1N1 vaccine effectiveness (1 to 5).
 - **age_group**, **education**, **race**, **sex**, **income_poverty**, and more demographic and health-related features.
 
-(For full list of features, see the dataset documentation.)
+(For full list of features, see DATA_DESCRIPTION.qmd documentation.)
 
 ---
 
