@@ -22,6 +22,25 @@ train <- merge(train_features, train_labels, by = "respondent_id")
 
 ```
 
+```{r - Install packages if not already installed}
+
+packages <- c("tidyverse", "naniar", "fastDummies", "forcats", "dplyr")
+
+
+installed <- packages %in% rownames(installed.packages())
+
+if (any(!installed)) {
+  install.packages(packages[!installed])
+}
+
+library(dplyr)
+library(tidyverse)
+library(naniar)
+library(fastDummies)
+library(forcats)
+
+```
+
 ## I. Executive Summary
 
 ## II. Exploratory Data Analysis
@@ -77,10 +96,8 @@ The missing data visualization reveals the extent of incomplete information acro
 
 ```{r - Summary Statistics for Numeric Variables}
 
-library(tidyverse)
-
 # NUMERIC VARIABLES SUMMARY
-summary(select_if(train, is.numeric))
+select(train, where(is.numeric))
 
 ```
 
@@ -158,8 +175,6 @@ For **income and poverty status**, the majority fall into the "\> \$75,000" inco
 
 ```{r - Plot Distributions of Ordinal Variables}
 
-library(tidyverse)
-
 # DEFINE ORDINAL MAPPINGS
 ordinal_mappings <- list(
   h1n1_concern = c("0" = "Not at all concerned", "1" = "Not very concerned", 
@@ -236,10 +251,6 @@ Binary variables indicate yes/no responses, where 1 = Yes and 0 = No.
 
 ```{r - Plot Binary Numeric Variables}
 
-library(tidyr)
-library(ggplot2)
-library(dplyr)
-
 # LIST OF BINARY VARIABLES
 binary_vars <- c(
   "behavioral_antiviral_meds", "behavioral_avoidance", "behavioral_face_mask",
@@ -299,9 +310,6 @@ For each categorical variable, we created binary indicator columns for all but o
 
 ```{r - Transform Categorical Variables}
 
-install.packages("fastDummies")
-library(fastDummies)
-
 # APPLY DUMMY ENCODING
 train <- fastDummies::dummy_cols(
   train,
@@ -317,46 +325,126 @@ head(train)
 
 ```
 
+### **Character Categorical Variables Transformation**
+
+The dataset contains several categorical variables stored as character strings, including `hhs_geo_region`, `employment_industry`, and `employment_occupation`. These variables represent geographic regions and employment details of respondents. For effective analysis and modeling, these character variables were converted into factor data types to enable proper handling of categorical data in statistical models. This transformation facilitates better interpretation and allows models to correctly treat these variables as nominal categories rather than continuous data.
+
+```{r - Transform Character String Variables}
+
+train$hhs_geo_region <- as.factor(train$hhs_geo_region)
+train$employment_industry <- as.factor(train$employment_industry)
+train$employment_occupation <- as.factor(train$employment_occupation)
+
+```
+
 ### **Ordinal Variable Transformation**
 
 We identified and transformed key ordinal variables, such as `h1n1_concern`, `h1n1_knowledge`, and various `opinion_*` variables, to ensure they are correctly treated in our models. These variables, representing ordered categories (e.g., levels of concern, knowledge, perceived vaccine effectiveness, and risk), were converted to ordered factors or numeric scores, depending on the modeling approach. This transformation preserves the inherent ranking in the data, allowing our models to better capture the relationships between these features and the target variables.
 
 ```{r - Transform Ordinal Variables}
 
-install.packages("forcats")
-library(forcats)
+# TRANSFORM OPINION VARIABLES 
+effectiveness_levels <- c("Not at all effective", "Not very effective", "Don't know", 
+                          "Somewhat effective", "Very effective")
+risk_levels <- c("Very low", "Somewhat low", "Don't know", "Somewhat high", "Very high")
+worry_levels <- c("Not at all worried", "Not very worried", "Don't know", 
+                  "Somewhat worried", "Very worried")
 
-# TRANSFORM OPINION VARIABLES
-opinion_levels <- c("Very unlikely", "Unlikely", "Neutral", "Likely", "Very likely")
-
-df <- df %>%
+train <- train %>%
   mutate(
-    opinion_h1n1_vacc_effective = factor(opinion_h1n1_vacc_effective, levels = opinion_levels, ordered = TRUE),
-    opinion_h1n1_risk = factor(opinion_h1n1_risk, levels = opinion_levels, ordered = TRUE),
-    opinion_seas_risk = factor(opinion_seas_risk, levels = opinion_levels, ordered = TRUE),
-    opinion_seas_vacc_effective = factor(opinion_seas_vacc_effective, levels = opinion_levels, ordered = TRUE)
+    opinion_h1n1_vacc_effective = factor(opinion_h1n1_vacc_effective, 
+                                         levels = effectiveness_levels, ordered = TRUE),
+    opinion_seas_vacc_effective = factor(opinion_seas_vacc_effective, 
+                                         levels = effectiveness_levels, ordered = TRUE),
+    opinion_h1n1_risk = factor(opinion_h1n1_risk, 
+                               levels = risk_levels, ordered = TRUE),
+    opinion_seas_risk = factor(opinion_seas_risk, 
+                               levels = risk_levels, ordered = TRUE),
+    opinion_h1n1_sick_from_vacc = factor(opinion_h1n1_sick_from_vacc, 
+                                         levels = worry_levels, ordered = TRUE),
+    opinion_seas_sick_from_vacc = factor(opinion_seas_sick_from_vacc, 
+                                         levels = worry_levels, ordered = TRUE)
   )
 
-# TRANSFORM EDUCATION
-edu_levels <- c("< 12 Years", "12 Years", "Some College", "College Graduate")
+```
 
-df <- df %>%
-  mutate(education = factor(education, levels = edu_levels, ordered = TRUE))
+### Final Data Check
 
-# TRANSFORM INCOME
-income_levels <- c("Less than $25,000", "$25,000 - $49,999", "$50,000 - $74,999", "$75,000 or more")
+All variables in the dataset have been transformed as needed for analysis and modeling. Ordinal variables were converted to ordered factors, character variables were re-coded as nominal factors, and categorical variables were dummy encoded where appropriate. Missing data in opinion-related variables were retained through the addition of a `"Missing"` level, preserving potential signal in non-response patterns. The table below confirms that all variables are now in their proper formats, with no outstanding transformation or cleaning required.
 
-df <- df %>%
-  mutate(income = factor(income, levels = income_levels, ordered = TRUE))
+```{r - Check Variables}
 
-# TRANSFORM AGE GROUP
-age_levels <- c("18 - 34 Years", "35 - 44 Years", "45 - 54 Years", "55 - 64 Years", "65+ Years")
+str(train)
+```
 
-df <- df %>%
-  mutate(age_group = factor(age_group, levels = age_levels, ordered = TRUE))
+```{r - Final Check for Missing Data}
 
-# MAKE NUMERICAL
-df$income_num <- as.numeric(df$income) - 1
-df$education_num <- as.numeric(df$education) - 1
+library(naniar)
+library(dplyr)
+library(tidyr)
+vis_miss(train %>% sample_n(1000))  # random sample of 1,000 rows
 
+train %>%
+  summarise(across(everything(), ~sum(is.na(.)))) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "missing_count") %>%
+  filter(missing_count > 0) %>%
+  arrange(desc(missing_count))
+
+sum(is.na(train))
+
+```
+
+```{r - Add Missing Level to Missing Opinion Variable Responses}
+
+add_missing_level <- function(x) {
+  levels(x) <- c(levels(x), "Missing")
+  x[is.na(x)] <- "Missing"
+  return(x)
+}
+
+# APPLY TO ALL 6 VARIABLES WITH MISSING RESPONSES
+train$opinion_seas_sick_from_vacc <- add_missing_level(train$opinion_seas_sick_from_vacc)
+train$opinion_seas_risk <- add_missing_level(train$opinion_seas_risk)
+train$opinion_seas_vacc_effective <- add_missing_level(train$opinion_seas_vacc_effective)
+train$opinion_h1n1_sick_from_vacc <- add_missing_level(train$opinion_h1n1_sick_from_vacc)
+train$opinion_h1n1_vacc_effective <- add_missing_level(train$opinion_h1n1_vacc_effective)
+train$opinion_h1n1_risk <- add_missing_level(train$opinion_h1n1_risk)
+```
+
+## III. Data Modeling
+
+### Data Splitting for Model Training and Evaluation
+
+To reliably evaluate model performance before making final predictions, the original training dataset was split into training and validation subsets. Using stratified sampling to preserve the distribution of the target variable (`h1n1_vaccine`), 80% of the data was allocated for model training, and the remaining 20% was reserved for validation. This approach enables robust assessment of the model’s predictive accuracy and generalizability on unseen data, ensuring that model tuning decisions are well-informed before applying the model to the final test set.
+
+```{r - Split Train Data}
+
+library(caret)
+set.seed(123)
+
+# CREATE 80/20SPLIT WITH TRAIN DATA
+train_index <- createDataPartition(train$h1n1_vaccine, p = 0.8, list = FALSE)
+train_data <- train[train_index, ]
+valid_data <- train[-train_index, ]
+
+# PREPARE PREDICTORS EXCLUDING IDs AND LABELS
+predictors <- setdiff(names(train_data), c("respondent_id", "h1n1_vaccine", "seasonal_vaccine"))
+
+# WRAP VARIABLE NAMES WITH BACKTICKS TO HANDLE SPACES/SPECIAL CHARACTERS
+predictors_backticked <- paste0("`", predictors, "`")
+
+# BUILD FORMULA USING BACKTICKED VARIABLE NAMES
+formula_str <- paste("h1n1_vaccine ~", paste(predictors_backticked, collapse = " + "))
+formula <- as.formula(formula_str)
+
+```
+
+### Logistic Regression Model
+
+```{r - Fit Logistic Model}
+
+# FIT LOGISTIC REGRESSION ON TRAINING PARTITION
+logit_model <- glm(formula, data = train_data, family = binomial)
+
+summary(logit_model)
 ```
