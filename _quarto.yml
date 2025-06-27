@@ -1,5 +1,14 @@
 project:
-  title: "flu-shot-learning"
+  type: website
+  output-dir: docs
 
-editor: visual
-
+website:
+  title: "Flu Shot Prediction"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: data_description.qmd
+        text: Data Description
+      - href: eda.qmd
+        text: EDA

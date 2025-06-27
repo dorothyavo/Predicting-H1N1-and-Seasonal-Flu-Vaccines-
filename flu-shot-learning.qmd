@@ -2,10 +2,361 @@
 title: "flu-shot-learning"
 ---
 
-## Quarto
+# Flu Shot Learning: Predict H1N1 and Seasonal Flu Vaccines
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+The project goal is to predict how likely individuals are to receive their H1N1 and seasonal flu vaccines. Specifically, we'll be predicting two probabilities: one for `h1n1_vaccine` and one for `seasonal_vaccine`.
 
-```{r}
-1 + 1
+The data for this competition comes from the National 2009 H1N1 Flu Survey (NHFS).
+
+```{r - Import Data}
+
+getwd()
+
+# READ TRAIN & TEST DATA
+train_features <- read.csv("training_set_features.csv")
+train_labels <- read.csv("training_set_labels.csv")
+test_features  <- read.csv("test_set_features.csv")
+
+# MERGE FEATURES & LABELS FOR TRAIN DATA
+train <- merge(train_features, train_labels, by = "respondent_id")
+
+```
+
+## I. Executive Summary
+
+## II. Exploratory Data Analysis
+
+In this section, we perform an exploratory analysis of the dataset to better understand the underlying patterns and characteristics of the data. Our primary focus includes:
+
+-   **Examining class balance** for the two target variables (`h1n1_vaccine` and `seasonal_vaccine`) to identify potential imbalances that could impact model performance.
+
+-   **Reviewing feature distributions and missing values** to guide data cleaning and preprocessing steps.
+
+-   **Investigating correlations and relationships** between features and target variables to inform feature selection and engineering.
+
+Understanding these aspects early helps to develop more effective predictive models and ensures we address any data quality issues upfront.
+
+```{r - EDA Class Balance}
+
+# CHECK CLASS BALANCE
+cat("Class balance for h1n1_vaccine:\n")
+table(train$h1n1_vaccine)
+cat("\nProportions for h1n1_vaccine:\n")
+prop.table(table(train$h1n1_vaccine))
+
+cat("\nClass balance for seasonal_vaccine:\n")
+table(train$seasonal_vaccine)
+cat("\nProportions for seasonal_vaccine:\n")
+prop.table(table(train$seasonal_vaccine))
+
+```
+
+### Class Balance Analysis:
+
+The target variables exhibit differing levels of class balance:
+
+-   **H1N1 Vaccine:** The data set is imbalanced with approximately 21% of respondents having received the H1N1 vaccine, while 79% did not.
+
+-   **Seasonal Vaccine:** The distribution is more balanced, with roughly 47% having received the seasonal flu vaccine and 53% not.
+
+This imbalance in the H1N1 vaccine target suggests the need for careful handling during modeling, such as considering stratified sampling or using evaluation metrics that account for imbalance.
+
+```{r - EDA Missing Data}
+
+# LOOK AT MISSING DATA
+install.packages("naniar")
+library(naniar)
+
+gg_miss_var(train)  # VISUALIZE
+
+```
+
+### **Missing Data Overview:**
+
+The missing data visualization reveals the extent of incomplete information across different features. The `health_insurance` variable has the highest amount of missing data, with almost 12,500 entries missing. The `doctor_recc_seasonal` and `doctor_recc_h1n1` variable follows with almost 2,500 missing entries each. These substantial gaps suggest that many respondents did not provide or have missing values for these features, which could affect the quality of any models using them. Addressing this missingness through appropriate imputation or exclusion strategies will be important in the analysis.
+
+```{r - Summary Statistics for Numeric Variables}
+
+library(tidyverse)
+
+# NUMERIC VARIABLES SUMMARY
+summary(select_if(train, is.numeric))
+
+```
+
+### **Summary Statistics (Numeric Variables) Overview:**
+
+The table above presents the basic summary statistics for the numeric variables in our data set. This includes:
+
+-   **`Respondent ID`** ranging from 0 to 26,706, representing unique survey participants.
+
+-   Variables like **`h1n1_concern`** and **`h1n1_knowledge`** are ordinal, ranging from 0 to 3 and 0 to 2 respectively, indicating self-reported levels of concern and knowledge about H1N1.
+
+-   Behavioral variables (e.g., `behavioral_antiviral_meds`, `behavioral_face_mask`, `behavioral_wash_hands`) are mostly binary indicators (0 or 1) reflecting respondents’ preventive actions.
+
+-   Missing values (NAs) vary significantly: for example, **`health_insurance`** has a high number of missing entries (\~12,000), while others like **`doctor_recc_h1n1`** have fewer but still notable missing data.
+
+-   Variables related to opinions on vaccines (e.g., `opinion_h1n1_vacc_effective`, `opinion_seas_risk`) are on a Likert scale (1 to 5), showing varying levels of perceived effectiveness and risk.
+
+This overview helps us understand the distribution and completeness of the data, guiding subsequent cleaning and analysis steps.
+
+```{r - Summary Statistics for Categorical Variables}
+
+# FREQUENCY COUNTS FOR CATEGORICAL VARIABLES
+train %>%
+  select(where(~is.character(.) || is.factor(.))) %>%
+  summarise(across(everything(), ~ list(table(.)))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "counts") %>%
+  print()
+
+# UNNEST COUNTS FOR EACH CATEGORICAL VARIABLE
+vars_to_print <- c("age_group", "education", "race", "sex", "income_poverty")
+print_freq_tables <- function(df, vars) {
+  for (var in vars) {
+    cat("\n--- Frequency for:", var, "---\n")
+    print(table(df[[var]], useNA = "ifany"))
+  }
+}
+
+print_freq_tables(train, vars_to_print)
+
+
+```
+
+### **Categorical Variable Distributions:**
+
+The data set contains several key demographic and socio-economic categorical variables. For example, the **age group** distribution shows a balanced representation across different ranges, with the highest count in the "65+ Years" group (6,843 respondents) and the lowest in the "35 - 44 Years" group (3,848 respondents).
+
+**Education** levels vary widely, with the largest group having "Some College" education (10,097 respondents), followed by "College Graduate" (7,043 respondents), and the smallest group with less than 12 years of education (1,407 respondents).
+
+Regarding **race**, the majority of respondents identify as "White" (21,222), with smaller proportions identifying as "Black" (2,118), "Hispanic" (1,755), and "Other or Multiple" (1,612).
+
+In terms of **sex**, females make up a larger portion of the sample (15,858) compared to males (10,849).
+
+For **income and poverty status**, the majority fall into the "\> \$75,000" income category (12,777), followed by those "Below Poverty" (6,810), and those "≤ \$75,000, Above Poverty" (4,423).
+
+### Plotting Numerical Variables:
+
+#### Ordinal Variables (with label mappings):
+
++--------------------------------+-----------------------------------------------+
+| Variable                       | Labels                                        |
++================================+===============================================+
+| `h1n1_concern`                 | 0 = Not at all concerned → 3 = Very concerned |
++--------------------------------+-----------------------------------------------+
+| `h1n1_knowledge`               | 0 = No knowledge → 2 = A lot of knowledge     |
++--------------------------------+-----------------------------------------------+
+| `opinion_h1n1_vacc_effective`\ | 1 = Not at all effective → 5 = Very effective |
+| `opinion_seas_vacc_effective`  |                                               |
++--------------------------------+-----------------------------------------------+
+| `opinion_h1n1_risk`\           | 1 = Very Low → 5 = Very High                  |
+| `opinion_seas_risk`            |                                               |
++--------------------------------+-----------------------------------------------+
+| `opinion_h1n1_sick_from_vacc`\ | 1 = Not at all worried → 5 = Very worried     |
+| `opinion_seas_sick_from_vacc`  |                                               |
++--------------------------------+-----------------------------------------------+
+
+```{r - Plot Distributions of Ordinal Variables}
+
+library(tidyverse)
+
+# DEFINE ORDINAL MAPPINGS
+ordinal_mappings <- list(
+  h1n1_concern = c("0" = "Not at all concerned", "1" = "Not very concerned", 
+                   "2" = "Somewhat concerned", "3" = "Very concerned"),
+  h1n1_knowledge = c("0" = "No knowledge", "1" = "A little knowledge", 
+                     "2" = "A lot of knowledge"),
+  opinion_h1n1_vacc_effective = c("1" = "Not at all effective", "2" = "Not very effective", 
+                                   "3" = "Don't know", "4" = "Somewhat effective", "5" = "Very effective"),
+  opinion_seas_vacc_effective = c("1" = "Not at all effective", "2" = "Not very effective", 
+                                   "3" = "Don't know", "4" = "Somewhat effective", "5" = "Very effective"),
+  opinion_h1n1_risk = c("1" = "Very low", "2" = "Somewhat low", 
+                        "3" = "Don't know", "4" = "Somewhat high", "5" = "Very high"),
+  opinion_seas_risk = c("1" = "Very low", "2" = "Somewhat low", 
+                        "3" = "Don't know", "4" = "Somewhat high", "5" = "Very high"),
+  opinion_h1n1_sick_from_vacc = c("1" = "Not at all worried", "2" = "Not very worried", 
+                                  "3" = "Don't know", "4" = "Somewhat worried", "5" = "Very worried"),
+  opinion_seas_sick_from_vacc = c("1" = "Not at all worried", "2" = "Not very worried", 
+                                  "3" = "Don't know", "4" = "Somewhat worried", "5" = "Very worried")
+)
+
+# LOOP THROUGH VARIABLES
+for (var in names(ordinal_mappings)) {
+  # CONVERT TO ORDERED FACTOR
+  train[[var]] <- factor(train[[var]],
+                         levels = names(ordinal_mappings[[var]]),
+                         labels = ordinal_mappings[[var]],
+                         ordered = TRUE)
+  
+  # CREATE PLOT
+  p <- ggplot(train, aes(x = .data[[var]])) +
+    geom_bar(fill = "#4E79A7") +
+    labs(title = paste("Distribution of", var),
+         x = NULL,
+         y = "Count") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+  
+  # PRINT PLOT
+  print(p)
+}
+
+
+```
+
+#### Binary Variables:
+
+Binary variables indicate yes/no responses, where 1 = Yes and 0 = No.
+
+-   **behavioral_antiviral_meds**: Taken antiviral meds
+
+-   **behavioral_avoidance**: Avoided close contact with sick people
+
+-   **behavioral_face_mask**: Bought/used a face mask
+
+-   **behavioral_wash_hands**: Frequently washed hands or used sanitizer
+
+-   **behavioral_large_gatherings**: Reduced time at large gatherings
+
+-   **behavioral_outside_home**: Reduced contact outside household
+
+-   **behavioral_touch_face**: Avoided touching face
+
+-   **doctor_recc_h1n1**: Doctor recommended H1N1 vaccine
+
+-   **doctor_recc_seasonal**: Doctor recommended seasonal vaccine
+
+-   **chronic_med_condition**: Has chronic medical condition
+
+-   **child_under_6_months**: Close contact with infant under 6 months
+
+-   **health_worker**: Is healthcare worker
+
+-   **health_insurance**: Has health insurance
+
+```{r - Plot Binary Numeric Variables}
+
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+
+# LIST OF BINARY VARIABLES
+binary_vars <- c(
+  "behavioral_antiviral_meds", "behavioral_avoidance", "behavioral_face_mask",
+  "behavioral_wash_hands", "behavioral_large_gatherings", "behavioral_outside_home",
+  "behavioral_touch_face", "doctor_recc_h1n1", "doctor_recc_seasonal",
+  "chronic_med_condition", "child_under_6_months", "health_worker",
+  "health_insurance"
+)
+
+# SELECT AND PIVOT LONGER
+binary_long <- train %>%
+  select(all_of(binary_vars)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  filter(!is.na(value))  # REMOVE NAs
+
+# PLOT
+ggplot(binary_long, aes(x = factor(value), fill = factor(value))) +
+  geom_bar() +
+  facet_wrap(~ variable, scales = "free_y", ncol = 3) +
+  scale_fill_manual(values = c("0" = "lightgray", "1" = "steelblue")) +
+  labs(x = "Value", y = "Count", fill = "Value") +
+  theme_minimal()
+
+```
+
+### Handling Missing Data
+
+To address missing values in the dataset, we applied the following cleaning strategy:
+
+-   For **categorical and factor variables**, missing values were replaced with the label `"Unknown"`. This approach preserves the presence of missing information without introducing bias through imputation of common categories.
+
+-   For **numeric and binary variables**, missing values were replaced with `-1`, a placeholder that clearly flags missing entries while allowing models that require numeric input to process the data without errors.
+
+This method ensures that all variables are complete and ready for modeling, while retaining the informational value of missingness in the dataset.
+
+```{r - Changing NAs to "Unknown"}
+
+# REPLACE NAs IN CATEGORICAL VARIABLES WITH "UNKNOWN"
+train <- train %>%
+  mutate(across(where(is.character), ~ replace_na(., "Unknown")))
+
+# REPLACE NAs IN FACTORS WITH "UNKNOWN" (IF ANY FACTOR VARS)
+train <- train %>%
+  mutate(across(where(is.factor), ~ fct_explicit_na(., na_level = "Unknown")))
+
+# REPLACE NAs IN NUMERIC/BINARY WITH -1
+train <- train %>%
+  mutate(across(where(is.numeric), ~ replace_na(., -1)))
+
+```
+
+### Categorical Variable Transformation
+
+To prepare the dataset for modeling, we transformed categorical variables into a format suitable for machine learning algorithms. Specifically, we applied one-hot encoding (dummy variable creation) to categorical features, including `age_group`, `education`, `race`, `sex`, `income_poverty`, `marital_status`, `rent_or_own`, `employment_status`, and `census_msa`.
+
+For each categorical variable, we created binary indicator columns for all but one category (reference level) to avoid multicollinearity in the models. This ensures that the transformed dataset provides clear, interpretable signals while maintaining numerical compatibility with a variety of modeling techniques.
+
+```{r - Transform Categorical Variables}
+
+install.packages("fastDummies")
+library(fastDummies)
+
+# APPLY DUMMY ENCODING
+train <- fastDummies::dummy_cols(
+  train,
+  select_columns = c("age_group", "education", "race", "sex",
+                     "income_poverty", "marital_status", "rent_or_own",
+                     "employment_status", "census_msa"),
+  remove_first_dummy = TRUE,         # AVOID MULTICOLLINEARITY (DROPS 1 LEVEL PER VAR)
+  remove_selected_columns = TRUE     # DROP ORIGINAL TEXT COLUMNS AFTER CREATING DUMMIES
+)
+
+# CHECK RESULTS
+head(train)
+
+```
+
+### **Ordinal Variable Transformation**
+
+We identified and transformed key ordinal variables, such as `h1n1_concern`, `h1n1_knowledge`, and various `opinion_*` variables, to ensure they are correctly treated in our models. These variables, representing ordered categories (e.g., levels of concern, knowledge, perceived vaccine effectiveness, and risk), were converted to ordered factors or numeric scores, depending on the modeling approach. This transformation preserves the inherent ranking in the data, allowing our models to better capture the relationships between these features and the target variables.
+
+```{r - Transform Ordinal Variables}
+
+install.packages("forcats")
+library(forcats)
+
+# TRANSFORM OPINION VARIABLES
+opinion_levels <- c("Very unlikely", "Unlikely", "Neutral", "Likely", "Very likely")
+
+df <- df %>%
+  mutate(
+    opinion_h1n1_vacc_effective = factor(opinion_h1n1_vacc_effective, levels = opinion_levels, ordered = TRUE),
+    opinion_h1n1_risk = factor(opinion_h1n1_risk, levels = opinion_levels, ordered = TRUE),
+    opinion_seas_risk = factor(opinion_seas_risk, levels = opinion_levels, ordered = TRUE),
+    opinion_seas_vacc_effective = factor(opinion_seas_vacc_effective, levels = opinion_levels, ordered = TRUE)
+  )
+
+# TRANSFORM EDUCATION
+edu_levels <- c("< 12 Years", "12 Years", "Some College", "College Graduate")
+
+df <- df %>%
+  mutate(education = factor(education, levels = edu_levels, ordered = TRUE))
+
+# TRANSFORM INCOME
+income_levels <- c("Less than $25,000", "$25,000 - $49,999", "$50,000 - $74,999", "$75,000 or more")
+
+df <- df %>%
+  mutate(income = factor(income, levels = income_levels, ordered = TRUE))
+
+# TRANSFORM AGE GROUP
+age_levels <- c("18 - 34 Years", "35 - 44 Years", "45 - 54 Years", "55 - 64 Years", "65+ Years")
+
+df <- df %>%
+  mutate(age_group = factor(age_group, levels = age_levels, ordered = TRUE))
+
+# MAKE NUMERICAL
+df$income_num <- as.numeric(df$income) - 1
+df$education_num <- as.numeric(df$education) - 1
+
 ```

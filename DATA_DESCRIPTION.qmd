@@ -1,0 +1,76 @@
+---
+title: "data description"
+format: html
+---
+
+## Full Variable List
+
+Below is a detailed list of all variables included in the dataset, grouped by type and function.
+
+------------------------------------------------------------------------
+
+### Target Variables
+
+| Variable           | Type   | Description                                     |
+|----------------|---------------|------------------------------------------|
+| `h1n1_vaccine`     | Binary | Received H1N1 vaccine (1 = Yes, 0 = No)         |
+| `seasonal_vaccine` | Binary | Received seasonal flu vaccine (1 = Yes, 0 = No) |
+
+------------------------------------------------------------------------
+
+### Demographic Variables
+
+| Variable            | Type        | Description                              |
+|------------------|-----------------|--------------------------------------|
+| `age_group`         | Categorical | Age category (e.g., “18 - 34 Years”)     |
+| `education`         | Ordinal     | Education level                          |
+| `race`              | Categorical | Self-reported race                       |
+| `sex`               | Categorical | Biological sex                           |
+| `income_poverty`    | Ordinal     | Income category relative to poverty line |
+| `marital_status`    | Categorical | Marital status                           |
+| `rent_or_own`       | Categorical | Housing status (Rent or Own)             |
+| `employment_status` | Categorical | Employment status                        |
+| `census_msa`        | Categorical | Metro area classification                |
+
+------------------------------------------------------------------------
+
+### Health Behavior & Condition Variables
+
+| Variable                      | Type   | Description                         |
+|---------------------|---------------|------------------------------------|
+| `behavioral_antiviral_meds`   | Binary | Took antiviral meds                 |
+| `behavioral_avoidance`        | Binary | Avoided contact with sick people    |
+| `behavioral_face_mask`        | Binary | Used face mask                      |
+| `behavioral_wash_hands`       | Binary | Washed hands or used sanitizer      |
+| `behavioral_large_gatherings` | Binary | Avoided large gatherings            |
+| `behavioral_outside_home`     | Binary | Reduced contact outside home        |
+| `behavioral_touch_face`       | Binary | Avoided touching face               |
+| `doctor_recc_h1n1`            | Binary | Doctor recommended H1N1 vaccine     |
+| `doctor_recc_seasonal`        | Binary | Doctor recommended seasonal vaccine |
+| `chronic_med_condition`       | Binary | Has chronic medical condition       |
+| `child_under_6_months`        | Binary | Contact with infant under 6 months  |
+| `health_worker`               | Binary | Is a healthcare worker              |
+| `health_insurance`            | Binary | Has health insurance                |
+
+------------------------------------------------------------------------
+
+### Attitudinal & Opinion (Ordinal) Variables
+
+| Variable | Type | Description |
+|---------------------|---------------|------------------------------------|
+| `h1n1_concern` | Ordinal | Concern about H1N1 (0 = none, 3 = very concerned) |
+| `h1n1_knowledge` | Ordinal | Knowledge about H1N1 (0 = none, 2 = a lot) |
+| `opinion_h1n1_vacc_effective` | Ordinal | Perceived H1N1 vaccine effectiveness (1–5) |
+| `opinion_seas_vacc_effective` | Ordinal | Perceived seasonal vaccine effectiveness (1–5) |
+| `opinion_h1n1_risk` | Ordinal | Personal risk from H1N1 (1–5) |
+| `opinion_seas_risk` | Ordinal | Personal risk from seasonal flu (1–5) |
+| `opinion_h1n1_sick_from_vacc` | Ordinal | Worry about sickness from H1N1 vaccine (1–5) |
+| `opinion_seas_sick_from_vacc` | Ordinal | Worry about sickness from seasonal vaccine (1–5) |
+
+------------------------------------------------------------------------
+
+### Identifier
+
+| Variable        | Type    | Description                           |
+|-----------------|---------|---------------------------------------|
+| `respondent_id` | Integer | Unique identifier for each respondent |
