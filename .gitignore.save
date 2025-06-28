@@ -1,0 +1,10 @@
+nano .gitignore
+data/*.csv
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+/data/
+data/*.csv
+data/*.csv
+data/*.csv
