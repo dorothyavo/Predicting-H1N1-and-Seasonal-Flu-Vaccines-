@@ -413,11 +413,13 @@ train$opinion_h1n1_risk <- add_missing_level(train$opinion_h1n1_risk)
 
 ## III. Data Modeling
 
-### Data Splitting for Model Training and Evaluation
+### A. Logistic Regression Model
+
+#### `h1n1_vaccine` Data Splitting for Model Training and Evaluation
 
 To reliably evaluate model performance before making final predictions, the original training dataset was split into training and validation subsets. Using stratified sampling to preserve the distribution of the target variable (`h1n1_vaccine`), 80% of the data was allocated for model training, and the remaining 20% was reserved for validation. This approach enables robust assessment of the model’s predictive accuracy and generalizability on unseen data, ensuring that model tuning decisions are well-informed before applying the model to the final test set.
 
-```{r - Split Train Data}
+```{r - Split h1n1_vaccine Train Data}
 
 library(caret)
 set.seed(123)
@@ -439,7 +441,13 @@ formula <- as.formula(formula_str)
 
 ```
 
-### Logistic Regression Model
+#### `h1n1_vaccine` Model Specification and Fitting
+
+We built a logistic regression model to estimate the probability of seasonal flu vaccination based on a comprehensive set of predictors including demographic factors (age, race, income), health-related variables (chronic conditions, health insurance), behavioral practices (mask-wearing, hand washing), and individual opinions about vaccines.
+
+The model was trained on the training dataset using the binomial family to fit the binary vaccination outcome. Several predictors were found statistically significant, including doctor recommendations, health insurance coverage, and vaccine-related attitudes, highlighting their importance in influencing vaccination behavior.
+
+During fitting, some predictors were excluded due to multicollinearity (singularities), ensuring model stability. The final model converged after six iterations, indicating a good fit to the training data.
 
 ```{r - Fit Logistic Model}
 
@@ -448,3 +456,111 @@ logit_model <- glm(formula, data = train_data, family = binomial)
 
 summary(logit_model)
 ```
+
+#### **`h1n1_vaccine` Logistic Model Performance Summary**
+
+We fitted a logistic regression model to predict seasonal flu vaccination status using various demographic, behavioral, and opinion variables. The model achieved an overall accuracy of 84.9%, indicating strong predictive performance. The Area Under the Curve (AUC) of 0.85 further confirms good discriminatory ability between vaccinated and non-vaccinated individuals.
+
+The model demonstrates high sensitivity (94.5%) in correctly identifying individuals who did not receive the vaccine, but lower specificity (48.1%) for correctly identifying those who did get vaccinated. This imbalance suggests the model is better at predicting the majority class (non-vaccinated), likely reflecting underlying class imbalance in the data.
+
+While the model provides valuable insights into key predictors of vaccination behavior, such as doctor recommendations and health status, further improvements could be explored by adjusting classification thresholds or applying more complex machine learning models to better capture the minority class.
+
+```{r - Evaluating the Logistic Model}
+
+library(caret)
+library(pROC)
+
+# PREDICT PROBABILITIES ON VALIDATION DATA
+logit_preds <- predict(logit_model, newdata = valid_data, type = "response")
+
+# CONVER PROBABILITIES TO CLASSES WITH 0.5 CUTOFF
+logit_classes <- ifelse(logit_preds > 0.5, 1, 0)
+
+# CONFUSION MATRIX FOR CLASSIFICATION PERFORMANCE
+conf_matrix <- confusionMatrix(
+  factor(logit_classes, levels = c(0,1)), 
+  factor(valid_data$h1n1_vaccine, levels = c(0,1))
+)
+print(conf_matrix)
+
+# CALCULATE AUC (AREA UNDER ROC CURVE)
+roc_obj <- roc(valid_data$h1n1_vaccine, logit_preds)
+auc_val <- auc(roc_obj)
+cat("AUC:", auc_val, "\n")
+
+```
+
+#### Additional `h1n1_vaccine` Logistic Model Performance Metrics
+
+The logistic regression model predicting **H1N1 vaccine uptake** achieved strong classification performance on the validation set. It yielded an **F1 score** of 0.91, indicating a well-balanced trade-off between precision and recall. The **precision** of 87.4% suggests that most predicted vaccine recipients were correctly identified, while the **recall** of 94.5% shows excellent sensitivity in capturing actual recipients. The ROC curve confirms the model's discriminatory ability, though with room for improvement as indicated by curvature close to the diagonal in earlier thresholds. Overall, the model performs well for identifying likely vaccine recipients, despite some class imbalance in the data.
+
+```{r - Additional Performance Metrics, i.e., F1 and ROC}
+
+install.packages("yardstick")
+library(yardstick)
+library(ggplot2)
+
+# COMBINR PREDICTIONS AND TRUE LABELS
+eval_df <- data.frame(
+  truth = factor(valid_data$h1n1_vaccine),
+  prediction = factor(logit_classes),
+  prob = logit_preds
+)
+
+# F1, PRECISION, RECALL
+f_meas(eval_df, truth = truth, estimate = prediction)
+precision(eval_df, truth = truth, estimate = prediction)
+recall(eval_df, truth = truth, estimate = prediction)
+
+# ROC CURVE
+eval_df$.pred_1 <- eval_df$prob
+roc_df <- roc_curve(data = eval_df, truth = truth, .pred_1)
+autoplot(roc_df)
+```
+
+#### `seasonal_vaccine` Data Splitting for Model Training and Evaluation
+
+To evaluate the performance of our logistic regression model predicting seasonal flu vaccination status, we split the original training dataset into training and validation subsets. Using stratified sampling via the `createDataPartition` function from the caret package, 80% of the data was allocated for model training while the remaining 20% was reserved for validation. This stratification preserved the original distribution of the `seasonal_vaccine` outcome, ensuring balanced representation of vaccinated and non-vaccinated individuals in both subsets. This approach provides a robust framework to assess model accuracy and generalizability before applying it to unseen data.
+
+```{r - Split seasonal_vaccine Train Data}
+
+install.packages("caret")
+library(caret)
+set.seed(123)
+
+train_index_seasonal <- createDataPartition(train$seasonal_vaccine, p = 0.8, list = FALSE)
+train_data_seasonal <- train[train_index_seasonal, ]
+valid_data_seasonal <- train[-train_index_seasonal, ]
+
+predictors <- setdiff(names(train_data_seasonal), c("respondent_id", "h1n1_vaccine", "seasonal_vaccine"))
+predictors_backticked <- paste0("`", predictors, "`")
+
+formula_str <- paste("seasonal_vaccine ~", paste(predictors_backticked, collapse = " + "))
+formula <- as.formula(formula_str)
+
+```
+
+#### `seasonal_vaccine` Model Specification and Fitting
+
+We developed a logistic regression model to predict the likelihood of receiving the seasonal flu vaccine, using a comprehensive set of predictors that included demographic factors (age, race, income, education), health-related variables (chronic conditions, health insurance status, doctor recommendations), behavioral practices (mask wearing, hand washing), and personal opinions about vaccines.
+
+The model was trained on the training dataset with a binomial family, reflecting the binary nature of the vaccination outcome. Several predictors showed strong statistical significance, notably doctor recommendations, health insurance coverage, age groups, and vaccine-related attitudes, emphasizing their critical role in influencing vaccination decisions.
+
+During the modeling process, some variables were excluded due to multicollinearity (singularities) to maintain model stability. The model converged successfully after five iterations, demonstrating a good fit, with residual deviance substantially reduced from the null model. These results suggest the model effectively captures key factors driving seasonal vaccine uptake.
+
+```{r - seasonal_vaccine Logistic Model}
+
+#SEASONAL VACCINE LOGISTIC MODEL
+seasonal_model <- glm(formula, data = train_data_seasonal, family = binomial)
+
+summary(seasonal_model)
+
+```
+
+#### `seasonal_vaccine` **Logistic Model Performance Summary**
+
+We fitted a logistic regression model to predict seasonal flu vaccination status using a broad range of demographic, behavioral, and opinion-based predictors. The model achieved an overall accuracy of 82.6%, demonstrating strong performance in identifying individuals' vaccination status. The Area Under the Curve (AUC) was 0.86, indicating a high ability to distinguish between vaccinated and non-vaccinated individuals.
+
+The model exhibited high sensitivity (93.1%) for correctly identifying those who did not receive the seasonal vaccine, but lower specificity (50.2%) for correctly identifying vaccinated individuals. This indicates the model performs well on the majority class (non-vaccinated), with room for improvement in detecting the minority class.
+
+Key predictors included doctor recommendations, health insurance, age, and opinions about seasonal vaccine effectiveness and risk. While the model offers meaningful insights into factors influencing vaccination behavior, future enhancements—such as threshold tuning or ensemble methods—could improve performance on the minority class and support more balanced predictions.
