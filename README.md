@@ -30,9 +30,3 @@ The dataset contains 36 columns:
 ## Performance Metric
 Model performance is evaluated by the **mean ROC AUC** score over the two target variables (`h1n1_vaccine` and `seasonal_vaccine`). ROC AUC measures the ability to rank positive cases higher than negative ones, with values closer to 1 indicating better performance.
 
-In Python, you can compute ROC AUC using:
-
-```python
-from sklearn.metrics import roc_auc_score
-roc_auc_score(y_true, y_pred, average="macro")
-
